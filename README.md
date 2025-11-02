@@ -59,8 +59,10 @@ Same for devices that uses the VID:PID of other known device. Most 3rd party Swi
 | 8BitDo Ultimate 2.4g (usb cable dinput)                                             |                                          |
 | ASCII SeaMic                                                                        |                                          |
 | ASCII TranceVib (rumble only)                                                       |                                          |
+| Brook Wingman FGC (Standard)                                                        |                                          |
 | Dell USB Optical Mouse                                                              |                                          |
 | Google Stadia                                                                       |                                          |
+| Gulikit KingKong 2 Pro (Android Mode)                                               |                                          |
 | Hori Pokken                                                                         |                                          |
 | Hori Fighting Commander 4 "FC4" (PS3, PS4 mode)                                     |                                          |
 | Hori Fighting Commander (PS3, PS4, PC mode)                                         |                                          |
@@ -91,6 +93,7 @@ Same for devices that uses the VID:PID of other known device. Most 3rd party Swi
 | Nintendo GC to WiiU adapter                                                         |                                          |
 | PantherLord USB/PS2 2in1 Adapter, Twin USB Joystick                                 |                                          |
 | PixArt USB Optical Mouse                                                            |                                          |
+| PowerA FUSION Wireless Arcade Stick (switch controller)                             |                                          |
 | PowerA Link pecial Edition (switch controller)                                      |                                          |
 | PowerA Super Mario (switch controller)                                              |                                          |
 | PXN F-16 Flight controller                                                          |                                          |
