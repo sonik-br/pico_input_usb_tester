@@ -52,6 +52,7 @@ Same for devices that uses the VID:PID of other known device. Most 3rd party Swi
 | 8BitDo M30 BT (usb cable dinput)                                                    |                                          |
 | 8BitDo NeoGeo (usb cable dinput)                                                    | (dongle requires adafruit tinyusb 3.4.3) |
 | 8BitDo Pro 2 (usb cable dinput)                                                     |                                          |
+| 8BitDo Pro 3 (usb cable dinput)                                                     | UNTESTED                                 |
 | 8BitDo MicroPad (usb cable dinput)                                                  |                                          |
 | 8BitDo N30 (usb cable dinput)                                                       |                                          |
 | 8BitDo Mod Kit for Original MD Controller                                           |                                          |
@@ -69,6 +70,7 @@ Same for devices that uses the VID:PID of other known device. Most 3rd party Swi
 | Hori Pad Mini 3                                                                     |                                          |
 | Hori Mini 4 [PS4-099U]                                                              |                                          |
 | Hori Pad Switch (also retrobit saturn and legacy16)                                 |                                          |
+| Hori Real Arcade Pro V3-SA                                                          |                                          |
 | Hori FlightStick / FS2                                                              |                                          |
 | IBuffalo Snes                                                                       |                                          |
 | Logitech Force 3d                                                                   |                                          |
@@ -122,7 +124,7 @@ Same for devices that uses the VID:PID of other known device. Most 3rd party Swi
 
 #### Some screens of the info it shows
 
-![HID descriptor](docs/hid_desc.png)
-![HID data log](docs/hid_data.png)
-![Data mapping](docs/data_map.png)
-![Resulting struct map](docs/struct.png)
+![HID descriptor](imgs/hid_desc.png)
+![HID data log](imgs/hid_data.png)
+![Data mapping](imgs/data_map.png)
+![Resulting struct map](imgs/struct.png)
