@@ -17,7 +17,7 @@ Wire a usb-a female port to a pico.
 
 - Flash the firmware.
 - Connect the pico to a PC.
-- Open the HTML file and connect to pico.
+- Open this [link](https://sonik-br.github.io/pico_input_usb_tester/) and connect to pico.
 - After that, you can connect a game controller to the pico.
 - Press some buttons, it should appear on-screen.
 - Check the second tab (the ugly green one) for data map.

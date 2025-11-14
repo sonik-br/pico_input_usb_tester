@@ -1,0 +1,1957 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>USB Input Tester</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsencrypt@latest/bin/jsencrypt.min.js"></script>
+</head>
+<body>
+
+<h1>USB Input Tester</h1>
+
+  <style>
+    body { font-family: sans-serif; background: #111; color: #eee; text-align: center; }
+    .gamepad { display: grid; grid-template-areas:
+      "dpad left-stick right-stick buttons buttons2"
+      "triggers triggers triggers triggers analogbuttons";
+      gap: 20px; justify-content: center; margin-top: 40px;
+    }
+
+    .buttons_4 { display: grid; grid-template-areas:
+      "btn_l1 btn_l2 btn_r1 btn_r2"
+      ". btn_x btn_y ."
+      ". btn_a btn_b .";
+      gap: 20px; justify-content: center; margin-top: 40px;
+    }
+
+    .buttons_6 { display: grid; grid-template-areas:
+      "btn_l2 . btn_r2"
+      "btn_x btn_y btn_l1"
+      "btn_a btn_b btn_r1";
+      gap: 20px; justify-content: center; margin-top: 40px;
+    }
+
+
+    .section { border: 2px solid #444; padding: 10px; border-radius: 10px; background: #222; }
+    .dpad button, .buttons button {
+      width: 40px; height: 40px; margin: 5px;
+      background: #333; color: #eee; border: none; border-radius: 5px;
+    }
+
+    .dpad { display: grid; grid-template-areas:
+      ". dpad_u ."
+      "dpad_l . dpad_r"
+      ". dpad_d .";
+    }
+
+    .active { background: limegreen !important; }
+    .stick { width: 100px; height: 100px; background: #333; border-radius: 50%; position: relative; }
+    .thumb { width: 20px; height: 20px; background: red; border-radius: 50%; position: absolute; top: 40px; left: 40px; }
+    .trigger { width: 100px; height: 20px; background: #333; margin: 5px auto; position: relative; }
+    .fill { height: 100%; background: orange; position: absolute; top: 0; left: 0; }
+
+
+.hex-display {
+  font-family: monospace;       /* fixed-width font */
+  white-space: pre;             /* preserve spacing */
+  background: #111;
+  color: #0f0;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.log-box {
+  font-family: monospace;
+  background: #111;
+  color: #0f0;
+  padding: 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+
+
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .tab-button {
+      padding: 10px 20px;
+      background: #eee;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    .tab-button.active {
+      background: #007bff;
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 20px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+
+/* table */
+        
+    .zebra {
+        border-collapse: collapse;         /* clean borders */
+        /*width: 100%;*/
+        font-family: system-ui, sans-serif;
+        text-align: left;
+        margin-left: auto;
+        margin-right: auto;
+    }
+        
+    /* cells */
+    .zebra th,
+    .zebra td {
+        padding: 0.1rem 0.2rem;
+        border: 1px solid #e6e6e6;
+        /*color:green;*/
+    }
+        
+    /* alternating rows */
+    .zebra tbody tr:nth-child(odd) {
+        background: #111;               /* odd rows */
+    }
+    .zebra tbody tr:nth-child(even) {
+        background: #222;               /* even rows (striped) */
+    }
+        
+    /* subtle hover */
+    .zebra tbody tr:hover {
+        background: #444;
+    }
+        
+    /* keep header visually distinct */
+    .zebra thead th {
+        background: #f1f3f5;
+        font-weight: 600;
+    }
+
+    .btn_6 {
+        display: none;
+    }
+  </style>
+
+<br/>
+<button id="connect">Connect HID Device</button>
+
+
+<div id="connected_device" style="display:none">
+
+  <div class="tabs">
+    <button class="tab-button active" data-tab="tab1">Tab 1</button>
+    <button class="tab-button" data-tab="tab2">Tab 2</button>
+    <button class="tab-button" data-tab="tab3">Tab 3</button>
+  </div>
+
+  <div id="tab1" class="tab-content active">
+      <div id="gamepad" class="gamepad">
+        <div class="section" style="grid-area: dpad">
+          <h3>D-Pad</h3>
+          <div class="buttons dpad">
+            <button style="grid-area: dpad_u" id="PAD_U">↑</button>
+            <button style="grid-area: dpad_l" id="PAD_L">←</button>
+            <button style="grid-area: dpad_d" id="PAD_D">↓</button>
+            <button style="grid-area: dpad_r" id="PAD_R">→</button>
+          </div>
+        </div>
+
+        <div class="section" style="grid-area: left-stick">
+          <h3>Left Stick</h3>
+          <div class="stick" id="LX">
+            <div class="thumb" id="thumb-LX"></div>
+          </div>
+        </div>
+
+        <div class="section" style="grid-area: right-stick">
+          <h3>Right Stick</h3>
+          <div class="stick" id="RX">
+            <div class="thumb" id="thumb-RX"></div>
+          </div>
+        </div>
+    <!--
+    * 4 face buttons (follows xbox layout)
+    * X  Y
+    * A  B
+    * 
+    * 6 face buttons
+    * X  Y  L1(Z)
+    * A  B  R1(C)
+    * 
+    * 8 face buttons
+    * X  Y  L1(Z)  L2
+    * A  B  R1(C)  R2
+    -->
+        <div class="section" style="grid-area: buttons">
+          <h3>Main Buttons (layout: 
+          <!--
+            <label><input type="radio" name="theme" id="btn_layout_4" value="buttons_4" checked>4</label>&nbsp;
+            <label><input type="radio" name="theme" id="btn_layout_6" value="buttons_6">6</label>
+            -->
+  <input type="radio" name="theme" id="btn_layout_4" value="buttons_4" checked>
+  <label for="btn_layout_4">4</label>
+
+  <input type="radio" name="theme" id="btn_layout_6" value="buttons_6">
+  <label for="btn_layout_6">6</label>
+
+          )
+          </h3>
+
+          <div id="buttons_layout" class="buttons buttons_4">
+            <button style="grid-area: btn_a" id="A" title="A">A</button>
+            <button style="grid-area: btn_b" id="B" title="B">B</button>
+            <button style="grid-area: btn_x" id="X" title="X">X</button>
+            <button style="grid-area: btn_y" id="Y" title="Y">Y</button>
+            <button style="grid-area: btn_l1" id="L1" title="L1">L1<span class="btn_6">&nbsp;(Z)</span></button>
+            <button style="grid-area: btn_r1" id="R1" title="R1">R1<span class="btn_6">&nbsp;(C)</span></button>
+            <button style="grid-area: btn_l2" id="L2" title="L2">L2<span class="btn_6">&nbsp;(L)</span></button>
+            <button style="grid-area: btn_r2" id="R2" title="R2">R2<span class="btn_6">&nbsp;(R)</span></button>
+            <!--<button id="L3">L3</button>
+            <button id="R3">R3</button>-->
+            <!--<button id="START">Start</button>
+            <button id="SELECT">Select</button>
+            <button id="HOME">Home</button>-->
+          </div>
+        </div>
+
+        <div class="section buttons" style="grid-area: buttons; display:none">
+          <h3>Main Buttons (layout: 6)</h3>
+          <!--<button id="A">A</button>
+          <button id="B">B</button>
+          <button id="X">X</button>
+          <button id="Y">Y</button>
+          <button id="L1">L1</button>
+          <button id="R1">R1</button>
+          <button id="L2">L2</button>
+          <button id="R2">R2</button>-->
+          <!--<button id="L3">L3</button>
+          <button id="R3">R3</button>-->
+          <!--<button id="START">Start</button>
+          <button id="SELECT">Select</button>
+          <button id="HOME">Home</button>-->
+        </div>
+
+
+        <div class="section buttons" style="grid-area: buttons2">
+          <h3>Other Buttons</h3>
+          <button id="L3">L3</button>
+          <button id="R3">R3</button>
+          <button id="START">Start</button>
+          <button id="SELECT">Select</button>
+          <button id="HOME">Home</button>
+        </div>
+
+        <div class="section buttons" style="grid-area: analogbuttons">
+          <h3>Analog Buttons</h3>
+          <button id="ANALOG_A">A</button>
+          <button id="ANALOG_B">B</button>
+          <button id="ANALOG_X">X</button>
+          <button id="ANALOG_Y">Y</button>
+          <button id="ANALOG_L1">L1</button>
+          <button id="ANALOG_R1">R1</button>
+          <button id="ANALOG_L2">L2</button>
+          <button id="ANALOG_R2">R2</button>
+        </div>
+
+        <div class="section" style="grid-area: triggers">
+          <h3>Analog Triggers</h3>
+          <div class="trigger"><div class="fill" id="analog-L2"></div></div>
+          <div class="trigger"><div class="fill" id="analog-R2"></div></div>
+        </div>
+      </div>
+  </div> <!-- end tab1-->
+
+  <div id="tab2" class="tab-content">
+    <div> <!-- remover -->
+      <div id="device_info2"></div>
+      <button id="generateC">Generate C Struct</button>
+      <label>
+        <input type="checkbox" id="pauseUpdates"/>
+        PauseUpdates
+      </label>
+      <table id="mappingTable">
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Byte Index</th>
+            <th>Bit From</th>
+            <th>Bit To</th>
+            <th>Full Byte</th>
+            <th>Remove</th>
+            <th>Value</th>
+            <th>Computed</th>
+            <th>Comment</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <pre id="logArea" class="hex-display" style="text-align:left"></pre>
+    <button id="addLabel" style="display:none">Add Label</button>
+  </div> <!-- end tab2 -->
+
+  <div id="tab3" class="tab-content">
+    <h2>Tab 3 Content</h2>
+    <p>This is the content of Tab 3.</p>
+  </div>
+
+</div> <!-- end maind div with tabs -->
+
+
+
+
+
+<div id="files" style="display:none;">
+
+<p id="device_info" style="white-space: pre-line;"></p>
+
+<table id="device_info_table" class="zebra">
+  <thead></thead>
+  <tbody>
+  </tbody>
+</table>
+
+<p id="rawhidbytesdescriptor" class="hex-display" style="white-space: pre-line;"></p>
+    <div class="section">
+        <h3>Raw hid descriptor</h3>
+        <pre id="byte-log-descriptor" class="log-box" />
+    </div>
+</div>
+
+<p id="rawhidbytes" class="hex-display" style="white-space: pre-line;"></p>
+    <div class="section">
+        <h3>Raw hid data log</h3>
+        <pre id="byte-log" class="log-box"/>
+    </div>
+</div>
+
+ 
+
+<script>
+
+const radios = document.querySelectorAll('input[name="theme"]');
+const buttons_layout = document.getElementById('buttons_layout');
+
+radios.forEach(radio => {
+  radio.addEventListener('change', () => {
+    buttons_layout.className = `buttons ${radio.value}`; //radio.value + '-theme';
+    const is6btn = radio.value == 'buttons_6';
+    const buttons6 = document.querySelectorAll('.btn_6');
+    buttons6.forEach(btn => {
+        btn.style.display = is6btn ? 'block' : ' none';
+    });
+  });
+});
+
+//tabs
+const buttons = document.querySelectorAll('.tab-button');
+const contents = document.querySelectorAll('.tab-content');
+let activeTab = 0;
+
+buttons.forEach(button => {
+    button.addEventListener('click', () => {
+        // Remove active class from all buttons and contents
+        buttons.forEach(btn => btn.classList.remove('active'));
+        contents.forEach(content => content.classList.remove('active'));
+        switch (button.dataset.tab) {
+            case "tab1":
+                activeTab = 0;
+                break;
+            case "tab2":
+                activeTab = 1;
+                break;
+            case "tab3":
+                activeTab = 2;
+                break;
+        }
+        // Add active class to clicked button and corresponding content
+        button.classList.add('active');
+        document.getElementById(button.dataset.tab).classList.add('active');
+    });
+});
+
+const connected_device = document.getElementById('connected_device');
+
+let pauseUpdates = 0;
+
+
+//Enum Definitions
+const InputDeviceType = Object.freeze({
+    NONE: 0,
+    MOUSE: 1,
+    DIGITAL: 2,
+    DUALSTICK: 3,
+    JOYSTICK: 4,
+    WHEEL: 5,
+    DDGOCLASSIC: 6,
+    RUMBLE: 7,
+    OTHER: 8
+});
+
+const InputFaceButtonsLayout = Object.freeze({
+    FACE_BUTTONS_4: 0,
+    FACE_BUTTONS_6: 1
+});
+
+const InputAxisPrecision = Object.freeze({
+    AXIS_8BITS: 0,
+    AXIS_10BITS: 1,
+    AXIS_12BITS: 2,
+    AXIS_14BITS: 3,
+    AXIS_16BITS: 4
+});
+
+const InputMouseDpi = Object.freeze({
+    LOW: 0,
+    HIGH: 1
+});
+
+const InputDriver = Object.freeze({
+    OTHER: 0,
+    XINPUT: 1,
+    PS3: 2,
+    PS4: 3,
+    PS5: 4,
+    SWITCHPRO: 5,
+    GC2WIIU: 6,
+    DENSHA: 7,
+    LOGITECH: 8,
+    PANTHERLORD: 9,
+    SAITEK: 10,
+    HORIFS2: 11,
+    THRUSTMASTER: 12,
+    SIDEWINDER: 13,
+    STADIA: 14,
+    TRANCEVIB: 15,
+    HID_PARSER: 16,
+    HID_GENERIC: 17
+});
+
+//Parser Class
+class UsbInputDevice {
+    /**
+     * @param {Uint8Array|ArrayBuffer} inBuf
+     *   Raw HID bytes exactly matching packed sizeof(usb_input_device_t)==49.
+     * @param {number} skipBytes
+     *   How many leading bytes to skip (default 0, set to 1 if you have a reportId).
+     */
+    constructor(inBuf, skipBytes = 0) {
+        const u8 = inBuf instanceof Uint8Array ? inBuf : new Uint8Array(inBuf);
+        this.view = new DataView(
+            u8.buffer,
+            u8.byteOffset + skipBytes,
+            u8.byteLength - skipBytes
+        );
+        this.offset = 0;
+        this.device = this._parse();
+    }
+
+    readUint8() {
+        return this.view.getUint8(this.offset++);
+    }
+    readInt8() {
+        return this.view.getInt8(this.offset++);
+    }
+    readUint16() {
+        const v = this.view.getUint16(this.offset, true);
+        this.offset += 2;
+        return v;
+    }
+    readInt16() {
+        const v = this.view.getInt16(this.offset, true);
+        this.offset += 2;
+        return v;
+    }
+
+    readAnalogAxis() {
+        const precision = this.readUint8();
+        const value = this.readInt16();
+        return {
+            precision,
+            value
+        };
+    }
+
+    _parse() {
+        // 1) Header (9 bytes)
+        const connected = !!this.readUint8();
+        const address = this.readUint8();
+        const instance = this.readUint8();
+        const vid = this.readUint16();
+        const pid = this.readUint16();
+        const version = this.readUint16();
+
+        // 2) digital_buttons (24 bits in 3 bytes, little-endian)
+        const db0 = this.readUint8();
+        const db1 = this.readUint8();
+        const db2 = this.readUint8();
+        const digital_buttons = db0 | (db1 << 8) | (db2 << 16);
+
+        const buttons = {
+            PAD_U: !!(db0 & 0x01),
+            PAD_D: !!(db0 & 0x02),
+            PAD_L: !!(db0 & 0x04),
+            PAD_R: !!(db0 & 0x08),
+            A: !!(db0 & 0x10),
+            B: !!(db0 & 0x20),
+            X: !!(db0 & 0x40),
+            Y: !!(db0 & 0x80),
+            L1: !!(db1 & 0x01),
+            R1: !!(db1 & 0x02),
+            L2: !!(db1 & 0x04),
+            R2: !!(db1 & 0x08),
+            L3: !!(db1 & 0x10),
+            R3: !!(db1 & 0x20),
+            START: !!(db1 & 0x40),
+            SELECT: !!(db1 & 0x80),
+            HOME: !!(db2 & 0x01)
+        };
+
+        // 3) Analog sticks (4 × 3 bytes = 12 bytes)
+        const analog_sticks = {
+            LX: this.readAnalogAxis(),
+            LY: this.readAnalogAxis(),
+            RX: this.readAnalogAxis(),
+            RY: this.readAnalogAxis()
+        };
+
+        // 4) Analog buttons (16 bytes)
+        const analog_buttons_array = Array.from({
+            length: 16
+        }, () => this.readUint8());
+
+        const analog_buttons = {
+            // 3-byte axis -> { precision, value }
+            ANALOG_L2: {
+                precision: analog_buttons_array[0],
+                value: (analog_buttons_array[2] << 8) | analog_buttons_array[1]
+            },
+            ANALOG_R2: {
+                precision: analog_buttons_array[3],
+                value: (analog_buttons_array[5] << 8) | analog_buttons_array[4]
+            },
+
+            // single-byte analogs
+            ANALOG_A: analog_buttons_array[6],
+            ANALOG_B: analog_buttons_array[7],
+            ANALOG_X: analog_buttons_array[8],
+            ANALOG_Y: analog_buttons_array[9],
+            ANALOG_L1: analog_buttons_array[10],
+            ANALOG_R1: analog_buttons_array[11],
+            ANALOG_PAD_U: analog_buttons_array[12],
+            ANALOG_PAD_D: analog_buttons_array[13],
+            ANALOG_PAD_L: analog_buttons_array[14],
+            ANALOG_PAD_R: analog_buttons_array[15]
+        };
+
+        // 5) Mouse state (6 bytes)
+        const mf = this.readUint8();
+        const mouse = {
+            READY: !!(mf & 0x01),
+            DPI: (mf >> 1) & 0x7F,
+            X: this.readInt16(),
+            Y: this.readInt16(),
+            W: this.readInt8()
+        };
+
+        // 6) device_config_t (2 bytes bitfields)
+        const cb1 = this.readUint8();
+        const cb2 = this.readUint8();
+        const CONFIG = {
+            DEVICE_TYPE: cb1 & 0x0F,
+            FACE_BUTTONS_LAYOUT: (cb1 >> 4) & 0x03,
+            HAS_BTN_HOME: !!(cb2 & 0x01),
+            HAS_BTN_SELECT: !!(cb2 & 0x02),
+            HAS_BTN_START: !!(cb2 & 0x04),
+            HAS_JOY_TWIST: !!(cb2 & 0x08),
+            HAS_JOY_THROTTLE: !!(cb2 & 0x10),
+            HAS_ANALOG_TRIGGERS: !!(cb2 & 0x20),
+            HAS_ANALOG_MAIN_BUTTONS: !!(cb2 & 0x40),
+            HAS_ANALOG_DPAD: !!(cb2 & 0x80)
+        };
+
+        // 7) inputDriver (1 byte)
+        const INPUT_DRIVER = this.readUint8();
+
+        return {
+            connected,
+            address,
+            instance,
+            vid,
+            pid,
+            version,
+            digital_buttons,
+            buttons,
+            analog_sticks,
+            analog_buttons_array,
+            analog_buttons,
+            mouse,
+            CONFIG,
+            INPUT_DRIVER
+        };
+    }
+
+    getStruct() {
+        return this.device;
+    }
+}
+
+function normalizeAxis(axis) {
+    const precisionBits = {
+        [InputAxisPrecision.AXIS_8BITS]: 8,
+        [InputAxisPrecision.AXIS_10BITS]: 10,
+        [InputAxisPrecision.AXIS_12BITS]: 12,
+        [InputAxisPrecision.AXIS_14BITS]: 14,
+        [InputAxisPrecision.AXIS_16BITS]: 16
+    };
+
+    const bits = precisionBits[axis.precision];
+
+    if (!bits) {
+        console.warn("Unknown axis precision:", axis.precision);
+        return 0;
+    }
+
+    const max = (1 << (bits - 1)) - 1;
+    const min = -(1 << (bits - 1));
+
+    const clamped = Math.max(min, Math.min(max, axis.value));
+    return clamped / max;
+}
+
+
+function updateGamepad(input) {
+    // Buttons
+    for (const key in input.buttons) {
+        const btn = document.getElementById(key);
+        if (btn) btn.classList.toggle('active', input.buttons[key]);
+    }
+
+    // Analog sticks
+    const lx = normalizeAxis(input.analog_sticks.LX); //input.analog_sticks.LX.value;
+    const ly = normalizeAxis(input.analog_sticks.LY); //input.analog_sticks.LY.value;
+    const rx = normalizeAxis(input.analog_sticks.RX); //input.analog_sticks.RX.value;
+    const ry = normalizeAxis(input.analog_sticks.RY); //input.analog_sticks.RY.value;
+
+    /*const moveThumb = (id, x, y) => {
+      const thumb = document.getElementById(id);
+      if (thumb) {
+        thumb.style.left = `${40 + x / 512}px`;
+        thumb.style.top  = `${40 + y / 512}px`;
+      }
+    };*/
+    const moveThumb = (id, xNorm, yNorm) => {
+        const thumb = document.getElementById(id);
+        if (thumb) {
+            const radius = 40; // max movement in pixels from center
+            thumb.style.left = `${40 + xNorm * radius}px`;
+            thumb.style.top = `${40 + yNorm * radius}px`; // remove the minus to match CSS direction
+        }
+    };
+
+    moveThumb('thumb-LX', lx, ly);
+    moveThumb('thumb-RX', rx, ry);
+
+    // Analog triggers
+    const l2 = input.analog_buttons.ANALOG_L2.value;
+    const r2 = input.analog_buttons.ANALOG_R2.value;
+    document.getElementById('analog-L2').style.width = `${l2 / 255 * 100}%`;
+    document.getElementById('analog-R2').style.width = `${r2 / 255 * 100}%`;
+}
+
+function toHexString(value, width = 4) {
+    return '0x' + value
+        .toString(16)
+        .toUpperCase()
+        .padStart(width, '0');
+}
+
+//function printtext(text, clear = false) {
+//    const paragraph = document.getElementById('device_info');
+//    
+//    if (clear)
+//        paragraph.textContent = "";
+//    paragraph.textContent += text;
+//    console.log(text);
+//}
+function printtext(text, value = '', clear = false) {
+    const tbody = document.querySelector('#device_info_table tbody');
+  
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td');
+    const td2 = document.createElement('td');
+
+    td1.textContent = text;
+    td2.textContent = value;
+
+    tr.append(td1);
+    tr.append(td2);
+    tbody.append(tr);
+//    if (clear)
+//        paragraph.textContent = "";
+//    paragraph.textContent += text;
+    console.log(text);
+}
+
+
+//hid device
+let device_main;
+let devicehidraw;
+
+const logBuffer = []; // holds up to 10 entries
+function logPacket(data) {
+    // Convert Uint8Array to hex string
+    const hex = Array.from(data)
+        //.map(byte => `0x${byte.toString(16).padStart(2, '0').toUpperCase()}`)
+        .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+        .join(' ');
+
+    // Add to buffer
+    logBuffer.push(hex);
+    if (logBuffer.length > 10) logBuffer.shift(); // keep only last 10
+
+    // Update display
+    document.getElementById("byte-log").textContent = logBuffer.join('\n');
+}
+
+const chunkBuffer = new Map(); // key: chunk number, value: Uint8Array
+let expectedChunks = null;
+
+function handleHIDReport(data) {
+    const chunkNum = (data[0] & 0xF) - 1;
+    const totalChunks = (data[0] & 0xF0) >> 4;
+    const len = data[1];
+    const payload = data.slice(2); // bytes 2–62
+
+    // Store chunk
+    chunkBuffer.set(chunkNum, payload);
+
+    // Set expected total if first time
+    if (expectedChunks === null) {
+        expectedChunks = totalChunks;
+    }
+
+    // Check if all chunks received
+    if (chunkBuffer.size === expectedChunks) {
+        // Reconstruct full message
+        const fullData = new Uint8Array(expectedChunks * 61);
+        for (let i = 0; i < expectedChunks; i++) {
+            const chunk = chunkBuffer.get(i);
+            if (!chunk) {
+                console.warn(`Missing chunk ${i}`);
+                return;
+            }
+            fullData.set(chunk, i * 61);
+        }
+
+        // Clear buffer for next message
+        chunkBuffer.clear();
+        expectedChunks = null;
+
+        // Use fullData
+        console.log("Reconstructed:", fullData.slice(0, len));
+        autoMapInputs(fullData.slice(0, len));
+
+
+        const hex = Array.from(fullData.slice(0, len))
+            //.map(byte => `0x${byte.toString(16).padStart(2, '0').toUpperCase()}`)
+            .map(byte => byte.toString(16).padStart(2, '0').toUpperCase())
+            .join(' ');
+
+        // Add to buffer
+        //logBuffer.push(hex);
+        //if (logBuffer.length > 10) logBuffer.shift(); // keep only last 10
+
+        // Update display
+        document.getElementById("byte-log-descriptor").textContent = hex;
+        // You can convert to hex, string, etc.
+    }
+
+    return;
+    console.log("Part ", receivedBytes[0] & 0xF);
+    console.log("Total ", (receivedBytes[0] & 0xF0) >> 4);
+    console.log("Len ", receivedBytes[1]);
+    if (receivedBytes[1] == 0)
+        return;
+    for (let i = 2; i < receivedBytes.length; i++) {
+        console.log("DATA: ", toHexString(receivedBytes[i], 2));
+        if (i == receivedBytes[1])
+            break;
+    }
+}
+
+async function onInputReport(event) {
+    const {
+        data,
+        reportId
+    } = event;
+    //const value = data.getUint8(0); // Example: read first byte
+    //console.log(`Input report ${reportId}: ${value}`);
+    //console.log(`Report ID ${reportId}:`, new Uint8Array(data.buffer));
+    //const view = new DataView(event.data.buffer);
+
+    const receivedBytes = new Uint8Array(data.buffer);
+    if (reportId == 3) {
+        if (activeTab == 0)
+            handle_report3(receivedBytes);
+    }
+    if (reportId == 5) {
+        handleHIDReport(receivedBytes);
+    }
+    if (reportId == 4) {
+        const paragraph = document.getElementById('rawhidbytes');
+        paragraph.textContent = "";
+        const len = receivedBytes[0];
+
+        logPacket(receivedBytes.subarray(1, len + 1));
+        if (activeTab == 1)
+            processReport(receivedBytes.subarray(1, len + 1));
+            
+
+
+        /*for (let i = 1; i < receivedBytes.length; i++) {
+          paragraph.textContent += toHexString(receivedBytes[i], 2);
+          if (i == len)
+            break;
+        }*/
+    }
+}
+
+navigator.hid.addEventListener("disconnect", async (event) => {
+    const device = event.device;
+    if (device == device_main || device == devicehidraw) {
+        if (device_main && device_main.opened) {
+            await device_main.close();
+            device_main.removeEventListener("inputreport", onInputReport);
+        }
+
+        if (devicehidraw && devicehidraw.opened) {
+            await devicehidraw.close();
+            devicehidraw.removeEventListener("inputreport", onInputReport);
+        }
+
+        console.warn("HID device disconnected:", device.productName);
+
+        
+        lastReportList.fill(0);
+            
+
+        connected_device.style.display = "none";
+        document.getElementById("files").style.display = "block";
+        document.getElementById('connect').style.display = "block";
+        //console.warn("HID device disconnected:", device.productName);
+    }
+});
+
+
+const WEB_ID_ITF0 = 0x014A;
+const WEB_ID_ITF1 = 0x014B;
+
+document.getElementById('connect').addEventListener('click', async () => {
+    try {
+        const filters = [{
+                vendorId: 0x1209,
+                productId: 0x595A,
+                usagePage: 0xFF00,
+                usage: WEB_ID_ITF0
+            },
+            {
+                vendorId: 0x1209,
+                productId: 0x595A,
+                usagePage: 0xFF00,
+                usage: WEB_ID_ITF1
+            }
+        ];
+
+        const devices = await navigator.hid.requestDevice({
+            filters
+        });
+        if (devices.length === 0) {
+            alert("No device selected.");
+            return;
+        }
+        console.log("devices ", devices.length);
+
+        document.getElementById("files").style.display = "block";
+
+
+        //device = devices[0];
+        //await device.open();
+
+        //devicehidraw = devices[1];
+        //await devicehidraw.open();
+
+        for (const d of devices) {
+            for (const collection of d.collections) {
+                if (collection.usagePage === 0xFF00 && collection.usage === WEB_ID_ITF0) {
+                    // Found the gamepad interface
+                    console.log("Found 1:", d.productName);
+                    device = d;
+                    break;
+                }
+                if (collection.usagePage === 0xFF00 && collection.usage === WEB_ID_ITF1) {
+                    // Found the gamepad interface
+                    console.log("Found 5:", d.productName);
+                    devicehidraw = d;
+                    break;
+                }
+            }
+        }
+        await device.open();
+        await devicehidraw.open();
+
+
+        //console.log("Device opened:", device.productName);
+        const reportId = 1;
+        const data = await device.receiveFeatureReport(reportId);
+
+        // Parse the returned DataView
+        const byteArray = new Uint8Array(data.buffer);
+        //byteArray[0] == 1 report id
+        console.log("Feature Report Data:", byteArray);
+
+        //const platform_sub = byteArray[1] & 0x0F;
+        //const platform = (byteArray[1] >> 4) | ((byteArray[2] & 0x03) << 4);
+        //const revision = (byteArray[2] >> 2) & 0x3F;
+        const version =
+            byteArray[1] |
+            (byteArray[2] << 8) |
+            (byteArray[3] << 16) |
+            (byteArray[4] << 24);
+        const year = Math.floor(version / 10000);
+        const month = Math.floor((version % 10000) / 100);
+        const day = version % 100;
+        console.log("Year:", year);
+        console.log("Month:", month);
+        console.log("Day:", day);
+
+
+        const paragraph = document.getElementById('device_info');
+        paragraph.innerText = `INPUT_USB_VERSION: ${year}-${month}-${day}`;
+
+
+    } catch (err) {
+        console.error("Connection error:", err);
+        alert(`Connection error: ${err}`);
+        return;
+    }
+    //await device.close();
+    //return;
+
+    //const source  = new Uint8Array([10,20,30,40]); // any 4-byte Uint8Array
+    document.getElementById('connect').style.display = "none";
+    device.addEventListener("inputreport", onInputReport);
+    devicehidraw.addEventListener("inputreport", onInputReport);
+});
+
+
+
+
+const lastReportList = new Uint8Array(60); // destination
+var parserlast = new UsbInputDevice(lastReportList);
+
+function handle_report3(receivedBytes) {
+    const parser = new UsbInputDevice(receivedBytes);
+    const input = parser.getStruct();
+
+    //input report changed?
+    if (!(lastReportList.length === receivedBytes.length && Array.prototype.every.call(lastReportList, (v, i) => v === receivedBytes[i]))) {
+        //console.log("input.connected:", input.connected);
+
+        parserlast = new UsbInputDevice(lastReportList);
+        const inputlast = parserlast.getStruct();
+
+        if (inputlast.connected != input.connected) {
+            connected_device.style.display = input.connected ? "block" : "none";
+        }
+
+
+        if (inputlast.CONFIG.DEVICE_TYPE != input.CONFIG.DEVICE_TYPE) { // device changed?
+            const tbody = document.querySelector('#device_info_table tbody');
+            tbody.innerHTML = '';
+
+            printtext('Connected',  input.connected);
+            printtext('Address',    input.address);
+            printtext('Interface',  input.instance);
+            printtext('VID',        toHexString(input.vid, 4));
+            printtext('PID',        toHexString(input.pid, 4));
+            printtext('version',    toHexString(input.version, 4));
+
+            //console.log("input.CONFIG.DEVICE_TYPE:", input.CONFIG.DEVICE_TYPE);
+            //console.log("input.CONFIG.DEVICE_TYPE:", input.CONFIG.DEVICE_TYPE);
+
+            let input_device_type = '';
+            switch (input.CONFIG.DEVICE_TYPE) {
+                case InputDeviceType.NONE:
+                    input_device_type = "DEVICE_TYPE_NONE";
+                    break;
+                case InputDeviceType.MOUSE:
+                    input_device_type = "DEVICE_TYPE_MOUSE";
+                    break;
+                case InputDeviceType.DIGITAL:
+                    input_device_type = "DEVICE_TYPE_DIGITAL";
+                    break;
+                case InputDeviceType.DUALSTICK:
+                    input_device_type = "DEVICE_TYPE_DUALSTICK";
+                    break;
+                case InputDeviceType.JOYSTICK:
+                    input_device_type = "DEVICE_TYPE_JOYSTICK";
+                    break;
+                case InputDeviceType.WHEEL:
+                    input_device_type = "DEVICE_TYPE_WHEEL";
+                    break;
+                case InputDeviceType.DDGOCLASSIC:
+                    input_device_type = "DEVICE_TYPE_DDGOCLASSIC";
+                    break;
+                case InputDeviceType.RUMBLE:
+                    input_device_type = "DEVICE_TYPE_RUMBLE";
+                    break;
+                case InputDeviceType.OTHER:
+                    input_device_type = "DEVICE_TYPE_OTHER";
+                    break;
+                default:
+                    input_device_type = "ERROR";
+                    break;
+            }
+            printtext("Device type", input_device_type);
+
+            if (input.CONFIG.DEVICE_TYPE != InputDeviceType.NONE) {
+                //printtext(`input.INPUT_DRIVER: ${input.INPUT_DRIVER}\n`);
+                let input_driver_type = '';
+                switch (input.INPUT_DRIVER) {
+                    case InputDriver.OTHER:
+                        input_driver_type = "DRIVER_OTHER";
+                        break;
+                    case InputDriver.XINPUT:
+                        input_driver_type = "DRIVER_XINPUT";
+                        break;
+                    case InputDriver.PS3:
+                        input_driver_type = "DRIVER_PS3";
+                        break;
+                    case InputDriver.PS4:
+                        input_driver_type = "DRIVER_PS4";
+                        break;
+                    case InputDriver.PS5:
+                        input_driver_type = "DRIVER_PS5";
+                        break;
+                    case InputDriver.SWITCHPRO:
+                        input_driver_type = "DRIVER_SWITCHPRO";
+                        break;
+                    case InputDriver.GC2WIIU:
+                        input_driver_type = "DRIVER_GC2WIIU";
+                        break;
+                    case InputDriver.DENSHA:
+                        input_driver_type = "DRIVER_DENSHA";
+                        break;
+                    case InputDriver.LOGITECH:
+                        input_driver_type = "DRIVER_LOGITECH";
+                        break;
+                    case InputDriver.PANTHERLORD:
+                        input_driver_type = "DRIVER_PANTHERLORD";
+                        break;
+                    case InputDriver.SAITEK:
+                        input_driver_type = "DRIVER_SAITEK";
+                        break;
+                    case InputDriver.HORIFS2:
+                        input_driver_type = "DRIVER_HORIFS2";
+                        break;
+                    case InputDriver.THRUSTMASTER:
+                        input_driver_type = "DRIVER_THRUSTMASTER";
+                        break;
+                    case InputDriver.SIDEWINDER:
+                        input_driver_type = "DRIVER_SIDEWINDER";
+                        break;
+                    case InputDriver.STADIA:
+                        input_driver_type = "DRIVER_STADIA";
+                        break;
+                    case InputDriver.TRANCEVIB:
+                        input_driver_type = "DRIVER_TRANCEVIB";
+                        break;
+                    case InputDriver.HID_PARSER:
+                        input_driver_type = "DRIVER_HID_PARSER";
+                        break;
+                    case InputDriver.HID_GENERIC:
+                        input_driver_type = "DRIVER_HID_GENERIC";
+                        break;
+                    default:
+                        input_driver_type = "ERROR";
+                        break;
+                }
+                printtext("Driver", input_driver_type);
+
+                let face_buttons_layout_type = '';
+                switch (input.CONFIG.FACE_BUTTONS_LAYOUT) {
+                    case InputFaceButtonsLayout.FACE_BUTTONS_4:
+                        face_buttons_layout_type = "FACE_BUTTONS_4";
+                        break;
+                    case InputFaceButtonsLayout.FACE_BUTTONS_6:
+                        face_buttons_layout_type = "FACE_BUTTONS_6";
+                        break;
+                    default:
+                        face_buttons_layout_type = "ERROR";
+                        break;
+                }
+                printtext("Face buttons layout", face_buttons_layout_type);
+
+
+                printtext('Has BTN_HOME',              input.CONFIG.HAS_BTN_HOME);
+                printtext('Has BTN_SELECT',            input.CONFIG.HAS_BTN_SELECT);
+                printtext('Has BTN_START',             input.CONFIG.HAS_BTN_START);
+                printtext('Has JOY_TWIST',             input.CONFIG.HAS_JOY_TWIST);
+                printtext('Has JOY_THROTTLE',          input.CONFIG.HAS_JOY_THROTTLE);
+                printtext('Has ANALOG_TRIGGERS',       input.CONFIG.HAS_ANALOG_TRIGGERS);
+                printtext('Has ANALOG_MAIN_BUTTONS',   input.CONFIG.HAS_ANALOG_MAIN_BUTTONS);
+                printtext('Has ANALOG_DPAD',           input.CONFIG.HAS_ANALOG_DPAD);
+            } // if (input.CONFIG.DEVICE_TYPE != InputDeviceType.NONE)
+        } // device type changed?
+
+        lastReportList.set(receivedBytes);
+
+        if (input.connected) {
+            updateGamepad(input);
+        }
+    } // input report changed?
+
+
+    //if (input.CONFIG.DEVICE_TYPE === InputDeviceType.DUALSTICK) {
+    //  console.log("Dual stick detected!");
+    //}
+}
+
+
+
+
+//report parser
+const mappings = [];
+let reportLength = 0;
+
+const addBtn = document.getElementById('addLabel');
+const tbody = document.querySelector('#mappingTable tbody');
+const log = document.getElementById('logArea');
+
+addBtn.addEventListener('click', () => {
+    let newByte = 0,
+        newFrom = 0,
+        newTo = 0;
+
+    const len = mappings.length;
+    if (len > 0) {
+        const prev = mappings[len - 1];
+
+        // If the previous mapping covered a full byte → move to the next byte
+        if (prev.from === 0 && prev.to === 7) {
+            newByte = prev.byte + 1;
+
+            // Otherwise stay on the same byte, start at the next bit
+        } else {
+            newByte = prev.byte;
+            newFrom = prev.to + 1;
+
+            // If we overflow past bit 7, wrap to next byte bit-0
+            if (newFrom > 7) {
+                newByte = prev.byte + 1;
+                newFrom = 0;
+            }
+        }
+
+        newTo = newFrom;
+    }
+
+    mappings.push({
+        label: '',
+        byte: newByte,
+        from: newFrom,
+        to: newTo,
+        comment: ''
+    });
+
+    renderTable();
+});
+
+
+function renderTable() {
+    tbody.innerHTML = '';
+    let prevLabel = '';
+
+    mappings.forEach((mapping, idx) => {
+        const curLabel = mapping.label.trim();
+        const isGroupStart = curLabel !== '' && curLabel !== prevLabel;
+
+        renderRow(mapping, idx, isGroupStart);
+        prevLabel = curLabel;
+    });
+}
+
+function renderRow(mapping, idx, isGroupStart) {
+    const disableAdvanced = true;
+    const tr = document.createElement('tr');
+
+    // — Label —
+    const labelTd = document.createElement('td');
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.placeholder = 'Label...';
+    labelInput.value = mapping.label;
+    labelInput.addEventListener('input', e => {
+        mapping.label = e.target.value;
+    });
+    labelTd.append(labelInput);
+    tr.append(labelTd);
+
+    // — Byte index —
+    const byteTd = document.createElement('td');
+    const byteSelect = document.createElement('select');
+    byteSelect.disabled = disableAdvanced;
+    if (reportLength === 0) {
+        const opt = document.createElement('option');
+        opt.textContent = '-- no bytes --';
+        opt.disabled = true;
+        byteSelect.append(opt);
+    } else {
+        for (let i = 0; i < reportLength; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i;
+            if (i === mapping.byte) opt.selected = true;
+            byteSelect.append(opt);
+        }
+    }
+    byteSelect.addEventListener('change', e => {
+        mapping.byte = Number(e.target.value);
+    });
+    byteTd.append(byteSelect);
+    tr.append(byteTd);
+
+    // — Bit From —
+    const fromTd = document.createElement('td');
+    const fromSelect = document.createElement('select');
+    fromSelect.disabled = disableAdvanced;
+    for (let b = 0; b < 8; b++) {
+        const opt = document.createElement('option');
+        opt.value = b;
+        opt.textContent = b;
+        if (b === mapping.from) opt.selected = true;
+        fromSelect.append(opt);
+    }
+    fromSelect.addEventListener('change', e => {
+        mapping.from = Number(e.target.value);
+        if (mapping.from > mapping.to) {
+            mapping.to = mapping.from;
+            toSelect.value = mapping.to;
+        }
+    });
+    fromTd.append(fromSelect);
+    tr.append(fromTd);
+
+    // — Bit To —
+    const toTd = document.createElement('td');
+    const toSelect = document.createElement('select');
+    toSelect.disabled = disableAdvanced;
+    for (let b = 0; b < 8; b++) {
+        const opt = document.createElement('option');
+        opt.value = b;
+        opt.textContent = b;
+        if (b === mapping.to) opt.selected = true;
+        toSelect.append(opt);
+    }
+    toSelect.addEventListener('change', e => {
+        mapping.to = Number(e.target.value);
+        if (mapping.to < mapping.from) {
+            mapping.from = mapping.to;
+            fromSelect.value = mapping.from;
+        }
+    });
+    toTd.append(toSelect);
+    tr.append(toTd);
+
+    // — Full Byte —
+    const fullTd = document.createElement('td');
+    const fullBtn = document.createElement('button');
+    fullBtn.textContent = 'Full Byte';
+    fullBtn.disabled = disableAdvanced;
+    fullBtn.addEventListener('click', () => {
+        mapping.from = 0;
+        mapping.to = 7;
+        fromSelect.value = 0;
+        toSelect.value = 7;
+    });
+    fullTd.append(fullBtn);
+    tr.append(fullTd);
+
+    // — Remove —
+    const removeTd = document.createElement('td');
+    const removeBtn = document.createElement('button');
+    removeBtn.disabled = disableAdvanced;
+    removeBtn.textContent = '✖';
+    removeBtn.addEventListener('click', () => {
+        mappings.splice(idx, 1);
+        renderTable();
+    });
+    removeTd.append(removeBtn);
+    tr.append(removeTd);
+
+    // — Parsed Value —
+    const valueTd = document.createElement('td');
+    const valueInput = document.createElement('input');
+    valueInput.type = 'text';
+    valueInput.readOnly = true;
+    valueInput.value = '';
+    valueTd.append(valueInput);
+    tr.append(valueTd);
+    mapping.parsedEl = valueInput;
+
+    // — Computed (hidden when not group start) —
+    const compTd = document.createElement('td');
+    //if (!isGroupStart) {
+    //  compTd.style.display = 'none';
+    //}
+    const compInput = document.createElement('input');
+    if (!isGroupStart) {
+        compInput.style.display = 'none';
+    }
+    compInput.type = 'text';
+    compInput.readOnly = true;
+    compInput.value = '';
+    compTd.append(compInput);
+    tr.append(compTd);
+    mapping.combinedEl = compInput;
+
+    // –– Comment cell ––
+    const commentTd = document.createElement('td');
+    const commentInput = document.createElement('input');
+    if (!isGroupStart) {
+        commentInput.style.display = 'none';
+    }
+    commentInput.type = 'text';
+    commentInput.value = mapping.comment;
+    commentInput.addEventListener('input', e => {
+        mapping.comment = e.target.value;
+    });
+    commentTd.append(commentInput);
+    tr.append(commentTd);
+
+    tbody.append(tr);
+}
+
+
+let lastReceivedReportBytesLen = 0;
+function processReport(bytes) {
+    if (pauseUpdates)
+        return;
+
+    reportLength = bytes.length;
+    
+    if (lastReceivedReportBytesLen != bytes.length)
+        renderTable();
+    lastReceivedReportBytesLen = bytes.length;
+    
+    //log.textContent = '';
+
+    let i = 0;
+    while (i < mappings.length) {
+        const {
+            label
+        } = mappings[i];
+        if (!label.trim()) {
+            i++;
+            continue;
+        }
+
+        // find the end of this label-group
+        let j = i + 1;
+        while (j < mappings.length && mappings[j].label === label) j++;
+
+        // compute combined across rows [i..j)
+        let combined = 0,
+            bitOffset = 0;
+        for (let k = i; k < j; k++) {
+            const {
+                byte,
+                from,
+                to
+            } = mappings[k];
+            // per-piece (Value)
+            const width = to - from + 1;
+            const mask = ((1 << width) - 1) << from;
+            const piece = ((bytes[byte] & mask) >> from);
+            if (mappings[k].parsedEl.value === "" || mappings[k].parsedEl.value === null || mappings[k].parsedEl.value != piece)
+                mappings[k].parsedEl.value = piece;
+
+            // accumulate for combined
+            combined |= (piece << bitOffset);
+            bitOffset += width;
+        }
+
+        // log text
+        //const msg = `${label}: ${combined}`;
+        //console.log(msg);
+        //log.textContent += msg + '\n';
+
+        // fill Computed for every row in this group
+        for (let k = i; k < j; k++) {
+            if (mappings[k].combinedEl.value === "" || mappings[k].combinedEl.value === null || mappings[k].combinedEl.value != combined)
+                mappings[k].combinedEl.value = combined;
+        }
+
+        i = j;
+    }
+}
+
+
+// Initial render
+renderTable();
+
+
+/**
+ * Build a packed C struct with raw[] plus contiguous‐run bitfields.
+ *
+ * structName:   Desired C typedef name (e.g. "InputReport")
+ * mappings:     Array of { label, byte, from, to }
+ * reportLength: Total number of bytes in the report
+ */
+function generateCStructBitfields(structName, mappings, reportLength) {
+    const lines = [];
+    lines.push(`typedef struct __attribute__((packed, aligned(1))) {`);
+
+    let i = 0;
+    while (i < mappings.length) {
+        const lbl = mappings[i].label.trim();
+        if (!lbl) {
+            i++;
+            continue;
+        }
+
+        // collapse width
+        let width = mappings[i].to - mappings[i].from + 1;
+        let j = i + 1;
+        while (j < mappings.length && mappings[j].label.trim() === lbl) {
+            width += mappings[j].to - mappings[j].from + 1;
+            j++;
+        }
+
+        // sanitize to a valid identifier
+        let name = lbl.replace(/[^\w]/g, '_');
+        if (/^\d/.test(name)) name = '_' + name;
+
+        // pull out any comment on the first mapping in this run
+        const comment = mappings[i].comment.trim();
+        const commentSuffix = comment ? ` // ${comment}` : '';
+
+        lines.push(`    uint32_t ${name} : ${width};${commentSuffix}`);
+
+        i = j;
+    }
+
+    lines.push(`} ${structName};`);
+    lines.push(`// Total bytes: ${reportLength}`);
+    return lines.join('\n');
+}
+
+
+
+// Hook the button
+document.getElementById('generateC')
+    .addEventListener('click', () => {
+        const code = generateCStructBitfields(
+            'InputReport', // change to your preferred struct name
+            mappings,
+            reportLength
+        );
+        console.log(code);
+        document.getElementById('logArea').textContent = code;
+    });
+
+document.getElementById('pauseUpdates')
+    .addEventListener('change', () => {
+        pauseUpdates = document.getElementById('pauseUpdates').checked;
+    });
+
+
+
+
+
+//old, do not know about buttons
+/*function parseHIDInputs(desc) {
+  const fields   = [];
+  let i          = 0;
+  let bitOffset  = 0;
+
+  // Global state
+  const globalStack = [];
+  let globals = {
+    reportSize:  0,
+    reportCount: 0
+  };
+
+  // Local state
+  let locals = {
+    usages:    [],
+    usageMin:  null,
+    usageMax:  null
+  };
+
+  function readData(len) {
+    let v = 0;
+    for (let b = 0; b < len; b++) {
+      v |= desc[i++] << (8 * b);
+    }
+    if (len > 0) {
+      const signBit = 1 << (len * 8 - 1);
+      if (v & signBit) v |= ~((1 << (len * 8)) - 1);
+    }
+    return v;
+  }
+
+  while (i < desc.length) {
+    const prefix = desc[i++];
+    let size      = prefix & 0x03;
+    const type    = (prefix >> 2) & 0x03;
+    const tag     = (prefix >> 4) & 0x0F;
+    if (size === 3) size = 4;
+    const data = readData(size);
+
+    // GLOBAL ITEMS
+    if (type === 1) {
+      switch (tag) {
+        case 7:  // REPORT_SIZE
+          globals.reportSize = data;
+          // **Clear any previous local usages**  
+          locals = { usages: [], usageMin: null, usageMax: null };
+          break;
+
+        case 9:  // REPORT_COUNT
+          globals.reportCount = data;
+          break;
+
+        case 10: // PUSH
+          globalStack.push({ ...globals });
+          break;
+
+        case 11: // POP
+          globals = globalStack.pop() || globals;
+          break;
+      }
+    }
+
+    // LOCAL ITEMS (Usage, Usage Min/Max)
+    else if (type === 2) {
+      switch (tag) {
+        case 0: // USAGE
+          locals.usages.push(data);
+          break;
+        case 1: // USAGE_MINIMUM
+          locals.usageMin = data;
+          break;
+        case 2: // USAGE_MAXIMUM
+          locals.usageMax = data;
+          if (locals.usageMin != null) {
+            for (let u = locals.usageMin; u <= locals.usageMax; u++) {
+              locals.usages.push(u);
+            }
+          }
+          break;
+      }
+    }
+
+    // MAIN ITEM: INPUT
+    else if (type === 0 && tag === 8) {
+      for (let c = 0; c < globals.reportCount; c++) {
+        const usage = locals.usages[c] != null
+          ? locals.usages[c]
+          : c;
+        fields.push({
+          usage,
+          size:       globals.reportSize,
+          offsetBits: bitOffset
+        });
+        bitOffset += globals.reportSize;
+      }
+      // reset locals after each Input
+      locals = { usages: [], usageMin: null, usageMax: null };
+    }
+  }
+
+  return fields;
+}*/
+
+/**
+ * Parse a HID report descriptor (Uint8Array) and return an array of
+ * field descriptors: report_id, constant paddings, and each real Input usage.
+ *
+ * Each entry is:
+ *   {
+ *     isReportId?,     // true for the injected 8-bit Report ID
+ *     isConstant?,     // true for padding/constant bits
+ *     usagePage?,      // page for real data fields
+ *     usage?,          // usage ID for real data
+ *     size,            // bit-width
+ *     offsetBits       // bit offset into the report
+ *   }
+ */
+function parseHIDInputs(desc) {
+  const fields       = [];
+  let i              = 0;
+  let bitOffset      = 0;
+  let reportIdSeen   = false;
+
+  const globalStack = [];
+  let globals = {
+    usagePage:       null,
+    reportSize:      0,
+    reportCount:     0,
+    pendingReportId: null
+  };
+
+  let locals = { usages: [], usageMin: null, usageMax: null };
+
+  function readData(len) {
+    let v = 0;
+    for (let b = 0; b < len; b++) {
+      v |= desc[i++] << (8 * b);
+    }
+    if (len > 0) {
+      const sign = 1 << (len * 8 - 1);
+      if (v & sign) v |= ~((1 << (len * 8)) - 1);
+    }
+    return v;
+  }
+
+  while (i < desc.length) {
+    const prefix = desc[i++];
+    let size      = prefix & 0x03;
+    const type    = (prefix >> 2) & 0x03;
+    const tag     = (prefix >> 4) & 0x0F;
+    if (size === 3) size = 4;
+    const data = readData(size);
+
+    // GLOBAL
+    if (type === 1) {
+      switch (tag) {
+        case 0x0: globals.usagePage   = data; break;
+        case 0x7: globals.reportSize  = data; break;
+        case 0x8:
+          globals.pendingReportId = data;
+          reportIdSeen = false;
+          break;
+        case 0x9: globals.reportCount = data; break;
+        case 0xA: globalStack.push({ ...globals }); break;
+        case 0xB: globals = globalStack.pop() || globals; break;
+      }
+    }
+
+    // LOCAL
+    else if (type === 2) {
+      switch (tag) {
+        case 0x0: locals.usages.push(data); break;
+        case 0x1: locals.usageMin = data; break;
+        case 0x2:
+          locals.usageMax = data;
+          if (locals.usageMin != null) {
+            for (let u = locals.usageMin; u <= locals.usageMax; u++) {
+              locals.usages.push(u);
+            }
+          }
+          break;
+      }
+    }
+
+    // MAIN: INPUT
+    else if (type === 0 && tag === 0x8) {
+      const count      = globals.reportCount;
+      const bitWidth   = globals.reportSize;
+      const isConstant = (data & 0x01) === 0x01;
+
+      // 1) If constant/padding, keep it as its own field
+      if (isConstant) {
+        for (let c = 0; c < count; c++) {
+          fields.push({
+            isConstant: true,
+            size:       bitWidth,
+            offsetBits: bitOffset
+          });
+          bitOffset += bitWidth;
+        }
+        // constant bits are not usages, so don’t clear locals
+        continue;
+      }
+
+      // 2) Otherwise, first inject Report ID if needed
+      if (globals.pendingReportId != null && !reportIdSeen) {
+        fields.push({
+          isReportId:  true,
+          size:        8,
+          offsetBits:  bitOffset
+        });
+        bitOffset += 8;
+        reportIdSeen = true;
+      }
+
+      // 3) Pick last N usages, then emit each as a field
+      const queue = locals.usages.length >= count
+        ? locals.usages.slice(-count)
+        : locals.usages;
+
+      for (let c = 0; c < count; c++) {
+        const usage = queue[c] != null ? queue[c] : c;
+        fields.push({
+          usagePage:  globals.usagePage,
+          usage,
+          size:       bitWidth,
+          offsetBits: bitOffset
+        });
+        bitOffset += bitWidth;
+      }
+
+      // 4) Clear locals for next Input
+      locals = { usages: [], usageMin: null, usageMax: null };
+    }
+
+    // ignore OUTPUT / FEATURE
+  }
+
+  return fields;
+}
+
+
+
+
+function computeReportLength(fields) {
+    // Find the bit position just past the last field
+    const maxBit = fields.reduce(
+        (m, f) => Math.max(m, f.offsetBits + f.size),
+        0
+    );
+    // Round up to whole bytes
+    return Math.ceil(maxBit / 8);
+}
+
+
+
+/**
+ * Parses descriptorBytes → Input fields with usages → mappings[]
+ * so that each mapping has label "Usage_<usageID>".
+ */
+//old, do not know about buttons
+/*function autoMapInputs(descriptorBytes) {
+  // 1) Parse descriptor into usage/size/offset
+  const fields = parseHIDInputs(descriptorBytes);
+
+  // 2) Compute total report length in bytes
+  let maxBit = 0;
+  fields.forEach(f => {
+    maxBit = Math.max(maxBit, f.offsetBits + f.size);
+  });
+  reportLength = Math.ceil(maxBit / 8);
+
+  // 3) Clear old mappings
+  mappings.length = 0;
+
+  // 4) For each field, chunk it across byte boundaries
+  fields.forEach(f => {
+    let bitsLeft  = f.size;
+    let bitCursor = f.offsetBits;
+
+    while (bitsLeft > 0) {
+      const byteIndex  = Math.floor(bitCursor / 8);
+      const bitStart   = bitCursor % 8;
+      const space      = 8 - bitStart;
+      const chunkWidth = Math.min(bitsLeft, space);
+      const bitEnd     = bitStart + chunkWidth - 1;
+
+      mappings.push({
+        label: `Usage_${f.usage}`,
+        byte:  byteIndex,
+        from:  bitStart,
+        to:    bitEnd
+      });
+
+      bitCursor += chunkWidth;
+      bitsLeft  -= chunkWidth;
+    }
+  });
+
+  // 5) Re-render the table so you see one row per chunk
+  renderTable();
+}*/
+/**
+ * Parses HID descriptor → Input fields with usage info → mappings[].
+ * Labels:
+ *  • On Usage Page 0x01 and Usage 0x30–0x39 → X, Y, Z, Rx, Ry, Rz, Slider, Dial, Wheel, HatSwitch
+ *  • On Usage Page 0x09 → Button_<n>
+ *  • Otherwise → Usage_<n>
+ */
+/*
+function autoMapInputs(descriptorBytes) {
+  const fields = parseHIDInputs(descriptorBytes);
+
+  // compute # of bytes
+  reportLength = Math.ceil(
+    Math.max(...fields.map(f => f.offsetBits + f.size)) / 8
+  );
+
+  // Human-friendly names for 0x30–0x39 on page 0x01
+  const gdMap = {
+    0x30: 'X',   0x31: 'Y',   0x32: 'Z',
+    0x33: 'Rx',  0x34: 'Ry',  0x35: 'Rz',
+    0x36: 'Slider',
+    0x37: 'Dial',
+    0x38: 'Wheel',
+    0x39: 'HatSwitch'
+  };
+
+  mappings.length = 0;
+
+  fields.forEach(f => {
+    // pick label by page
+    let label;
+    if (f.usagePage === 0x01 && gdMap[f.usage]) {
+      label = gdMap[f.usage];
+    }
+    else if (f.usagePage === 0x09) {
+      label = `Button_${f.usage}`;
+    }
+    else {
+      label = `Usage_${f.usage}`;
+    }
+
+    // split across byte boundaries
+    let bitsLeft  = f.size;
+    let bitCursor = f.offsetBits;
+    while (bitsLeft > 0) {
+      const bIdx       = Math.floor(bitCursor / 8);
+      const bStart     = bitCursor % 8;
+      const space      = 8 - bStart;
+      const chunkWidth = Math.min(bitsLeft, space);
+      const bEnd       = bStart + chunkWidth - 1;
+
+      mappings.push({
+        label,
+        byte:  bIdx,
+        from:  bStart,
+        to:    bEnd
+      });
+
+      bitCursor += chunkWidth;
+      bitsLeft  -= chunkWidth;
+    }
+  });
+
+  renderTable();
+}*/
+
+/**
+ * Parses HID descriptor → Input fields with usage info → mappings[].
+ * Labels:
+ *  • On Usage Page 0x01 and Usage 0x30–0x39 → X, Y, Z, Rx, Ry, Rz, Slider, Dial, Wheel, HatSwitch
+ *  • On Usage Page 0x09 → Button_<n>
+ *  • Otherwise → Usage_<n>
+ */
+function autoMapInputs(descriptorBytes) {
+    const fields = parseHIDInputs(descriptorBytes);
+
+    // compute # of bytes
+    reportLength = Math.ceil(
+        Math.max(...fields.map(f => f.offsetBits + f.size)) / 8
+    );
+
+    // Human-friendly names for 0x30–0x39 on page 0x01
+    const gdMap = {
+      0x30:'X',  0x31:'Y',  0x32:'Z',
+      0x33:'Rx', 0x34:'Ry', 0x35:'Rz',
+      0x36:'Slider', 0x37:'Dial',
+      0x38:'Wheel',  0x39:'HatSwitch'
+    };
+
+  // Build base labels and count occurrences
+  const baseLabels = fields.map(f => {
+    if (f.isReportId)   return 'report_id';
+    if (f.isConstant)   return 'Const';
+    if (f.usagePage===0x01 && gdMap[f.usage]!=null) return gdMap[f.usage];
+    if (f.usagePage===0x09) return `Button_${f.usage}`;
+    return `Usage_${f.usage}`;
+  });
+  const counts = {};
+  baseLabels.forEach(l => counts[l]= (counts[l]||0)+1);
+
+  // Track suffix indices
+  const indices = {};
+
+  // Build mappings[]
+  mappings.length = 0;
+  fields.forEach((f, idx) => {
+    let label = baseLabels[idx];
+    if (counts[label] > 1) {
+      const n = indices[label]||0;
+      label = `${label}_${n}`;
+      indices[baseLabels[idx]] = n+1;
+    }
+
+    // Split across byte boundaries
+    let bitsLeft  = f.size;
+    let bitCursor = f.offsetBits;
+    while (bitsLeft > 0) {
+      const bIdx   = Math.floor(bitCursor/8);
+      const bStart = bitCursor%8;
+      const space  = 8 - bStart;
+      const w      = Math.min(bitsLeft, space);
+      mappings.push({
+        label,
+        byte:   bIdx,
+        from:   bStart,
+        to:     bStart + w - 1,
+        comment: ''
+      });
+      bitCursor += w;
+      bitsLeft  -= w;
+    }
+  });
+
+    renderTable();
+}
+
+
+
+
+// 1) Suppose you fetch/download your report descriptor bytes:
+/*
+const descBytes = new Uint8Array([
+]);
+*/
+
+// 2) Call the helper to auto-populate your UI
+//autoMapInputs(descBytes);
+//autoMapDescriptor(descBytes);
+
+
+
+
+// Specify each byte in hex or decimal
+//const dummyReport = new Uint8Array([0x80, 0B11111001, 0x01, 0x03, 0x02]);
+//processReport(dummyReport);
+
+//const processBtn = document.getElementById('process');
+//processBtn.addEventListener('click', () => {
+//  processReport(dummyReport);
+//});
+
+  </script>
+
+</body>
+</html>
